@@ -14,6 +14,9 @@ password    = process.env.AMQP_PASSWORD ? "guest"
 
 port        = process.env.HOS_API_PORT ? 8080
 
+String.prototype.endsWith = (suffix)->
+    return this.indexOf(suffix, this.length - suffix.length) isnt -1
+
 @hos = new HoSCom contract, amqpurl, username, password
 @hos.connect().then ()=>
     createHTTPServer()
@@ -35,7 +38,10 @@ createHTTPServer= ()=>
         sendHoSMessage(req, res, 'POST')
 
     app.get '*', (req, res) ->
-        sendHoSMessage(req, res, 'GET')
+        if req.url.endsWith('.html') isnt true and fs.existsSync(path.join __dirname, "views/" + req.url.slice(1))
+            sendHoSMessage(req, res, 'GET')
+        else
+            res.sendfile path.join __dirname,"views/" + req.url.slice(1)
 
     app.put '*', (req, res) ->
         sendHoSMessage(req, res, 'PUT')
