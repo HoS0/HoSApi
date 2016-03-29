@@ -6,10 +6,13 @@ bodyParser          = require 'body-parser'
 cors                = require 'cors'
 url                 = require 'url'
 contract            = require('./src/serviceContract')
+HosAuth             = require('hos-auth')
 
 amqpurl     = process.env.AMQP_URL ? "localhost"
 username    = process.env.AMQP_USERNAME ? "guest"
 password    = process.env.AMQP_PASSWORD ? "guest"
+
+port        = process.env.HOS_API_PORT ? 8080
 
 @hos = new HoSCom contract, amqpurl, username, password
 @hos.connect().then ()=>
@@ -18,7 +21,7 @@ password    = process.env.AMQP_PASSWORD ? "guest"
 createHTTPServer= ()=>
     app = express()
 
-    app.set 'port', 8080
+    app.set 'port', port
     app.set 'views', path.join __dirname, '../views'
     app.set 'view engine', 'html'
     app.use express.static path.join __dirname, '../public'
@@ -41,26 +44,31 @@ createHTTPServer= ()=>
         sendHoSMessage(req, res, 'DELETE')
 
 sendHoSMessage= (req, res, method)=>
-    body = req.body ? {}
+    try
+        body = req.body ? {}
 
-    parseUrl = url.parse(req.url.slice(1))
-    pathParts = parseUrl.pathname.split('/')
+        parseUrl = url.parse(req.url.slice(1))
+        pathParts = parseUrl.pathname.split('/')
 
-    destinationService = pathParts[0];
-    if req.headers and req.headers.sid
-        destinationService += ".#{req.headers.sid}"
+        destinationService = pathParts[0];
+        if req.headers and req.headers.sid
+            destinationService += ".#{req.headers.sid}"
 
-    headers =
-        method: method
-        task: pathParts[1]
-    if req.query
-        headers.query = req.query
-    if pathParts[2]
-        headers.taskId = pathParts[2]
-    if req.headers and req.headers.token
-        headers.token = req.headers.token
+        headers =
+            method: method
+            task: pathParts[1]
+        if req.query
+            headers.query = req.query
+        if pathParts[2]
+            headers.taskId = pathParts[2]
+        if req.headers and req.headers.token
+            headers.token = req.headers.token
+        headers.expiration = 100
 
-    headers.expiration = 100
+    catch error
+        res.status(400)
+        res.send "wrong argument in the request"
+        return
 
     @hos.sendMessage body, destinationService, headers
     .then (reply)=>
@@ -69,3 +77,8 @@ sendHoSMessage= (req, res, method)=>
     .catch (err)=>
         res.status(err.code)
         res.send JSON.stringify err.reason
+
+@HoSAuth = new HosAuth(amqpurl, username, password)
+@HoSAuth.connect()
+@HoSAuth.on 'message', (msg)=>
+        msg.reject("somethi")
