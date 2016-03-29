@@ -29,4 +29,8 @@ JSON request for destination service, depends on service documentation.
 
 For each calls the timeout of 5 sec has been define which will end up in returning 404 if the call does not have a reply in requested time.
 
+## Static pages
+
+Put the static pages in `views` directory and resources in `public` directory, making a `GET` request if the file exist web server will send the `HTML` file to requester.
+
 This software is licensed under the MIT License.
