@@ -4,7 +4,22 @@ HoS API is in charge of translating HTTP and HTTPS calls into the HoS environmen
 
 ## Example
 
-Currently API supports "GET", "PUT", "POST" and "DELETE" calls. you can specify your calls as following:
+``` coffee-script
+
+express     = require 'express'
+http        = require 'http'
+bodyParser  = require 'body-parser'
+hos         = require 'hos-api'
+
+app = express()
+
+app.set 'port', 8080
+app.use bodyParser.json()
+app.use hos()
+
+http.createServer(app).listen app.get('port'), () ->
+    console.log 'Express server listening on port ' + app.get 'port, make sure hos-auth and destination is running'
+```
 
 ### url
 
