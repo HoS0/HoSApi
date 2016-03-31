@@ -1,8 +1,8 @@
 {
   "name": "hos-api",
-  "version": "0.2.0",
-  "description": "HTTP api for HOS environment.",
-  "main": "index.coffee",
+  "version": "0.2.1",
+  "description": "Express.js midelware for transfaring HTTP calls for HOS environment.",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
