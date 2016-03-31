@@ -18,7 +18,6 @@ sendHoSMessage= (req, res, next, method)=>
             req.body = JSON.parse req.body
 
         body = req.body ? {}
-        console.log req.body
 
         parseUrl = url.parse(req.url.slice(1))
         pathParts = parseUrl.pathname.split('/')

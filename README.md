@@ -18,7 +18,8 @@ app.use bodyParser.json()
 app.use hos()
 
 http.createServer(app).listen app.get('port'), () ->
-    console.log 'Express server listening on port ' + app.get 'port, make sure hos-auth and destination is running'
+    console.log 'Express server listening on port ' + app.get('port')
+    console.log 'make sure hos-auth and destination service is running'
 ```
 
 ### url
