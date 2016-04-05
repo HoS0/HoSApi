@@ -19,8 +19,9 @@ sendHoSMessage= (req, res, next, method)=>
 
         body = req.body ? {}
 
-        parseUrl = url.parse(req.url.slice(1))
-        pathParts = parseUrl.pathname.split('/')
+        parseUrl = url.parse(req.url)
+        pathParts = parseUrl.pathname.split('/').filter (e)->
+            return e.replace(/(\r\n|\n|\r)/gm,"")
 
         destinationService = '/' + pathParts[0];
         if req.headers and req.headers.sid
@@ -35,7 +36,7 @@ sendHoSMessage= (req, res, next, method)=>
             headers.taskId = pathParts[2]
         if req.headers and req.headers.token
             headers.token = req.headers.token
-        headers.expiration = 100
+        headers.expiration = 1000
 
     catch error
         res.status(400)
