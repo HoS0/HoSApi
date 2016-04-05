@@ -6,7 +6,7 @@ serviceInfo =
         description: 'HoS Api to open HTTP channel into the environment'
     basePath: "/api"
   prefetch: 1
-  consumerNumber: 1
+  consumerNumber: 2
   messageTimeout: 2000
 
 module.exports = serviceInfo

@@ -1,6 +1,6 @@
 {
   "name": "hos-api",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Express.js midelware for transfaring HTTP calls for HOS environment.",
   "main": "index.js",
   "scripts": {

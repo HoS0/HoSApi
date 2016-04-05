@@ -12,11 +12,28 @@ String.prototype.endsWith = (suffix)->
 @hos = new HoSCom contract, amqpurl, username, password
 @hos.connect()
 
+setHeaders= (req, method, pathParts)=>
+    if req.headers and req.headers.sid
+        destinationService += ".#{req.headers.sid}"
+
+    headers =
+        method: method
+        task: '/' + pathParts[1]
+    if req.query
+        headers.query = req.query
+    if pathParts[2]
+        headers.taskId = pathParts[2]
+    if req.headers and req.headers.token
+        headers.token = req.headers.token
+    headers.expiration = 1000
+    headers.replyWholeMessage = true
+
+    return headers
+
 sendHoSMessage= (req, res, next, method)=>
     try
         if typeof req.body is "string"
             req.body = JSON.parse req.body
-
         body = req.body ? {}
 
         parseUrl = url.parse(req.url)
@@ -24,19 +41,8 @@ sendHoSMessage= (req, res, next, method)=>
             return e.replace(/(\r\n|\n|\r)/gm,"")
 
         destinationService = '/' + pathParts[0];
-        if req.headers and req.headers.sid
-            destinationService += ".#{req.headers.sid}"
 
-        headers =
-            method: method
-            task: '/' + pathParts[1]
-        if req.query
-            headers.query = req.query
-        if pathParts[2]
-            headers.taskId = pathParts[2]
-        if req.headers and req.headers.token
-            headers.token = req.headers.token
-        headers.expiration = 1000
+        headers = setHeaders(req, method, pathParts)
 
     catch error
         res.status(400)
@@ -46,24 +52,24 @@ sendHoSMessage= (req, res, next, method)=>
 
     @hos.sendMessage body, destinationService, headers
     .then (reply)=>
-        res.status(200)
-        res.send JSON.stringify reply
+        res.status(reply.properties.headers.statusCode ? 200)
+
+        if typeof reply.properties.headers.httpHeaders is 'object'
+            for key in Object.keys(reply.properties.headers.httpHeaders)
+                res.setHeader key, reply.properties.headers.httpHeaders[key]
+
+        res.send JSON.stringify reply.content
         next()
     .catch (err)=>
         res.status(err.code)
         res.send JSON.stringify err.reason
         next()
 
-module.exports= (req, res, next)->
-    if req and req.method
-        method = req.method.toLowerCase()
-        if req.url.endsWith('.html')
-            next()
-        else
-            sendHoSMessage(req, res, next, method)
-
-
 middlewareWrapper = (o)=>
+    if typeof o is 'object' and typeof o.on is 'function'
+        o.on 'destroy', ()=>
+            @hos.destroy()
+
     return (req, res, next)->
         if req and req.method
             method = req.method.toLowerCase()
