@@ -27,6 +27,10 @@ setHeaders= (req, method, pathParts)=>
         headers.token = req.headers.token
     headers.expiration = 1000
     headers.replyWholeMessage = true
+    headers.httpHeaders= {}
+
+    for key in Object.keys(req.headers)
+        headers.httpHeaders[key] = req.headers[key]
 
     return headers
 

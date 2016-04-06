@@ -103,7 +103,7 @@ describe "Create service", ()->
 
         enableDestroy(@server);
         @serviceDist.on '/users.post', (msg)=>
-            msg.properties.headers.httpHeaders = {'x-hos-test': 'something'}
+            msg.properties.headers.httpHeaders['x-hos-test']= 'something'
             msg.properties.headers.statusCode = 301
             msg.reply(msg.content)
 
