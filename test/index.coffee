@@ -1,32 +1,45 @@
-HoSCom      = require 'hos-com'
-express     = require 'express'
-http        = require 'http'
-path        = require 'path'
-bodyParser  = require 'body-parser'
-cors        = require 'cors'
-HosAuth     = require 'hos-auth'
-hos         = require '../src/HoSApi'
+http            = require 'http'
+Promise         = require 'bluebird'
+bodyParser      = require 'body-parser'
+crypto          = require 'crypto'
+HosCom          = require 'hos-com'
+HoSAuth         = require 'hos-auth'
+generalContract = require './serviceContract'
+HoSController   = require 'hos-controller'
+request         = require('supertest')
+hosApi          = require '../index'
+express         = require('express')
 
-port        = process.env.HOS_API_PORT ? 8080
 amqpurl     = process.env.AMQP_URL ? "localhost"
 username    = process.env.AMQP_USERNAME ? "guest"
 password    = process.env.AMQP_PASSWORD ? "guest"
 
-app = express()
 
-app.set 'port', port
-app.set 'view engine', 'html'
-app.use express.static path.join __dirname, '../public'
-app.use express.static path.join __dirname, '../views'
-app.use bodyParser.json()
-app.use cors()
-app.use hos()
+@serviceCon = JSON.parse(JSON.stringify(generalContract))
+@serviceCon.serviceDoc.basePath = "/serviceTest#{crypto.randomBytes(4).toString('hex')}"
+@serviceDist = new HosCom @serviceCon, amqpurl, username, password
+@hosAuth = new HoSAuth(amqpurl, username, password)
+@hosController = new HoSController(amqpurl, username, password)
 
-http.createServer(app).listen app.get('port'), () ->
-    console.log 'Express server listening on port ' + app.get 'port'
+promises = []
+promises.push @hosAuth.connect()
+promises.push @serviceDist.connect()
+promises.push @hosController.connect()
+Promise.all(promises).then ()=>
+    @hosAuth.on 'message', (msg)=>
+        msg.accept()
 
-@HoSAuth = new HosAuth(amqpurl, username, password)
-@HoSAuth.connect()
-@HoSAuth.on 'message', (msg)=>
-    if msg.properties.headers.method is 'post' and msg.content.foo is "bar"
-        msg.reject("ali happy")
+    hosApi.init(true, 'localhost:8091').then ()=>
+        @serviceDist.on '/users.post', (msg)=>
+            msg.reply(msg.content)
+
+        app = express()
+        app.set 'port', 8091
+        app.use bodyParser.json()
+        app.use hosApi.swaggerMetadata
+        app.use hosApi.swaggerValidator
+        app.use hosApi.swaggerUi
+        app.use hosApi.middleware
+
+        http.createServer(app).listen app.get('port'), () ->
+            console.log 'Express server listening on port ' + app.get 'port'

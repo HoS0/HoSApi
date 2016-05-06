@@ -1,25 +1,33 @@
-contract            = require('./serviceContract')
-url                 = require 'url'
-HoSCom              = require('hos-com')
+contract     = require('./serviceContract')
+url          = require('url')
+HoSCom       = require('hos-com')
+swaggerTools = require('swagger-tools')
+Promise      = require 'bluebird'
 
 amqpurl     = process.env.AMQP_URL ? "localhost"
 username    = process.env.AMQP_USERNAME ? "guest"
 password    = process.env.AMQP_PASSWORD ? "guest"
 
+hos = {}
+swaggerToolsMiddleware = {}
 String.prototype.endsWith = (suffix)->
     return this.indexOf(suffix, this.length - suffix.length) isnt -1
 
-@hos = new HoSCom contract, amqpurl, username, password
-@hos.connect()
-
-setHeaders= (req, method, pathParts)=>
+setHeaders= (req, method, pathParts)->
     if req.headers and req.headers.sid
         destinationService += ".#{req.headers.sid}"
 
     headers =
         method: method
         task: '/' + pathParts[1]
+
     if req.query
+        for key in Object.keys(req.query)
+            if req.query[key] is 'true'
+                req.query[key] = true
+            if req.query[key] is 'false'
+                req.query[key] = false
+
         headers.query = req.query
     if pathParts[2]
         headers.taskId = pathParts[2]
@@ -34,7 +42,7 @@ setHeaders= (req, method, pathParts)=>
 
     return headers
 
-sendHoSMessage= (req, res, next, method)=>
+sendHoSMessage = (req, res, next, method)=>
     try
         if typeof req.body is "string"
             req.body = JSON.parse req.body
@@ -50,31 +58,50 @@ sendHoSMessage= (req, res, next, method)=>
 
     catch error
         res.status(400)
-        res.send "wrong argument in the request"
-        next()
+        res.send 'wrong argument in the request'
         return
 
-    @hos.sendMessage body, destinationService, headers
+    hos.sendMessage body, destinationService, headers
     .then (reply)=>
         res.status(reply.properties.headers.statusCode ? 200)
-
         if typeof reply.properties.headers.httpHeaders is 'object'
             for key in Object.keys(reply.properties.headers.httpHeaders)
                 res.setHeader key, reply.properties.headers.httpHeaders[key]
 
-        res.send JSON.stringify reply.content
-        next()
+        res.json reply.content
+
     .catch (err)=>
         res.status(err.code)
         res.send JSON.stringify err.reason
-        next()
 
-middlewareWrapper = (o)=>
-    if typeof o is 'object' and typeof o.on is 'function'
-        o.on 'destroy', ()=>
-            @hos.destroy()
+getDocPeriodically = (host)=>
+    tick = ()->
+        hos.sendMessage({} , '/ctrlr', {task: '/tasks', method: 'get', query: {docincluded: true, host: host}})
+        .then (replyPayload)=>
+            swaggerTools.initializeMiddleware replyPayload.doc, (middleware)->
+                swaggerToolsMiddleware = middleware
+        .catch
+            # ignore
+    setInterval(tick, 10 * 60 * 1000);
 
-    return (req, res, next)->
+module.exports =
+    init: (useSwaggerTool, host)->
+        new Promise (fullfil, reject) =>
+            @hos = new HoSCom contract, amqpurl, username, password
+            @hos.connect()
+            .then ()=>
+                hos = @hos
+                if useSwaggerTool is true
+                    hos.sendMessage({} , '/ctrlr', {task: '/tasks', method: 'get', query: {docincluded: true, host: host}})
+                    .then (replyPayload)=>
+                        swaggerTools.initializeMiddleware replyPayload.doc, (middleware)->
+                            swaggerToolsMiddleware = middleware
+                            fullfil()
+                            getDocPeriodically(host)
+                else
+                    fullfil()
+
+    middleware: (req, res, next)->
         if req and req.method
             method = req.method.toLowerCase()
             if req.url.endsWith('.html')
@@ -82,4 +109,17 @@ middlewareWrapper = (o)=>
             else
                 sendHoSMessage(req, res, next, method)
 
-module.exports = middlewareWrapper
+    swaggerMetadata: (req, res, next)->
+        if swaggerToolsMiddleware
+            swaggerToolsMiddleware.swaggerMetadata()(req, res, next)
+
+    swaggerValidator: (req, res, next)->
+        if swaggerToolsMiddleware
+            swaggerToolsMiddleware.swaggerValidator()(req, res, next)
+
+    swaggerUi: (req, res, next)->
+        if swaggerToolsMiddleware
+            swaggerToolsMiddleware.swaggerUi()(req, res, next)
+
+    destroy: ()->
+        @hos.destroy()

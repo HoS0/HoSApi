@@ -1,111 +1,119 @@
 Promise         = require 'bluebird'
-express         = require 'express'
-http            = require 'http'
 bodyParser      = require 'body-parser'
-enableDestroy   = require 'server-destroy'
 crypto          = require 'crypto'
 HosCom          = require 'hos-com'
 HoSAuth         = require 'hos-auth'
-hosApi          = require '../index'
 generalContract = require './serviceContract'
+HoSController   = require 'hos-controller'
+request         = require('supertest')
+hosApi          = require '../index'
+express         = require('express')
 
 amqpurl     = process.env.AMQP_URL ? "localhost"
 username    = process.env.AMQP_USERNAME ? "guest"
 password    = process.env.AMQP_PASSWORD ? "guest"
-port        = 8089
 
-describe "Create service", ()->
-    beforeEach ()->
+describe "Open express app", ()->
+    beforeEach (done)->
         @serviceCon = JSON.parse(JSON.stringify(generalContract))
         @serviceCon.serviceDoc.basePath = "/serviceTest#{crypto.randomBytes(4).toString('hex')}"
         @serviceDist = new HosCom @serviceCon, amqpurl, username, password
-
         @hosAuth = new HoSAuth(amqpurl, username, password)
+        @hosController = new HoSController(amqpurl, username, password)
 
-        @app = express()
-        @app.set 'port', port
-        @app.use bodyParser.json()
-        @app.use hosApi()
+        promises = []
+        promises.push @hosAuth.connect()
+        promises.push @serviceDist.connect()
+        promises.push @hosController.connect()
+        Promise.all(promises).then ()=>
+            @hosAuth.on 'message', (msg)=>
+                msg.accept()
 
-    afterEach ()->
+            hosApi.init(true).then ()=>
+                done()
+
+    afterEach (done)->
+        hosApi.destroy()
         @serviceDist.destroy()
-        @server.destroy()
         @hosAuth.destroy()
+        @hosController.destroy()
+        done()
 
-    it "and it should get all the promisses to connect into hos and send a basic message", (done)->
-        @server = http.createServer(@app).listen @app.get('port'), () =>
-            promises = []
-            promises.push @hosAuth.connect()
-            promises.push @serviceDist.connect()
-
-            Promise.all(promises).then ()=>
-                body = JSON.stringify({foo: "bar"})
-
-                options =
-                    path: "/#{@serviceCon.serviceDoc.basePath}/users"
-                    hostname: "localhost",
-                    port: port,
-                    method: "post",
-                    headers:
-                        "Content-Type": "application/json",
-                        "Content-Length": Buffer.byteLength(body)
-
-                callback = (response)=>
-                    str = ''
-                    response.on 'data', (chunk)=>
-                        str += chunk;
-                    response.on 'end', ()=>
-                        replyPayload = JSON.parse str
-                        expect(replyPayload.foo).toEqual('bar');
-                        done()
-
-                request = http.request(options, callback)
-                request.end(body)
-
-        enableDestroy(@server);
+    it "GET /ctrlr/tasks", (done)->
         @serviceDist.on '/users.post', (msg)=>
             msg.reply(msg.content)
 
-        @hosAuth.on 'message', (msg)=>
-            msg.accept()
+        app = express()
+        app.use bodyParser.json()
+        app.use hosApi.middleware
 
-    it "and it senda a message have the reply change in headers", (done)->
-        @server = http.createServer(@app).listen @app.get('port'), () =>
-            promises = []
-            promises.push @hosAuth.connect()
-            promises.push @serviceDist.connect()
+        request(app)
+        .get('/ctrlr/tasks?docincluded=true')
+        .expect 200
+        .end (err, res)=>
+            if !err
+                expect(typeof res.body.doc).toBe('object')
+                done()
 
-            Promise.all(promises).then ()=>
-                body = JSON.stringify({foo: "bar"})
+        return
 
-                options =
-                    path: "/#{@serviceCon.serviceDoc.basePath}/users"
-                    hostname: "localhost",
-                    port: port,
-                    method: "post",
-                    headers:
-                        "Content-Type": "application/json",
-                        "Content-Length": Buffer.byteLength(body)
+    it "POST /@serviceCon.serviceDoc.basePath/users", (done)->
+        @serviceDist.on '/users.post', (msg)=>
+            msg.content.foo = 'not bar'
+            msg.reply(msg.content)
 
-                callback = (response)=>
-                    str = ''
-                    response.on 'data', (chunk)=>
-                        str += chunk;
-                    response.on 'end', ()=>
-                        replyPayload = JSON.parse str
-                        expect(replyPayload.foo).toEqual('bar');
-                        expect(response.headers['x-hos-test']).toEqual('something');
-                        expect(response.statusCode).toEqual(301);
-                        done()
+        app = express()
+        app.use bodyParser.json()
+        app.use hosApi.middleware
 
-                request = http.request(options, callback)
-                request.end(body)
+        request(app)
+        .post("/#{@serviceCon.serviceDoc.basePath}/users")
+        .send({foo: 'bar'})
+        .expect 200
+        .end (err, res)=>
+            if !err
+                expect(res.body.foo).toBe('not bar')
+                done()
 
-        enableDestroy(@server);
+        return
+
+    it "POST /@serviceCon.serviceDoc.basePath/users", (done)->
         @serviceDist.on '/users.post', (msg)=>
             msg.properties.headers.httpHeaders['x-hos-test']= 'something'
             msg.properties.headers.statusCode = 301
             msg.reply(msg.content)
 
-        @hosAuth.on 'message', (msg)=>
-            msg.accept()
+        app = express()
+        app.use bodyParser.json()
+        app.use hosApi.middleware
+
+        request(app)
+        .post("/#{@serviceCon.serviceDoc.basePath}/users")
+        .send({foo: 'bar'})
+        .expect 301
+        .end (err, res)=>
+            if !err
+                expect(res.body.foo).toEqual('bar');
+                expect(res.headers['x-hos-test']).toEqual('something');
+                done()
+
+    it "GET /ctrlr/tasks adding swagger tool", (done)->
+        @serviceDist.on '/users.post', (msg)=>
+            msg.reply(msg.content)
+
+        app = express()
+        app.use bodyParser.json()
+        app.use hosApi.swaggerMetadata
+        app.use hosApi.swaggerValidator
+        app.use hosApi.swaggerUi
+        app.use hosApi.middleware
+
+        request(app)
+        .get('/docs')
+        .expect 303
+        .end (err, res)=>
+            if !err
+                done()
+
+
+        return
