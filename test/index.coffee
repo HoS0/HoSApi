@@ -9,6 +9,8 @@ HoSController   = require 'hos-controller'
 request         = require('supertest')
 hosApi          = require '../index'
 express         = require('express')
+cors            = require 'cors'
+
 
 amqpurl     = process.env.AMQP_URL ? "localhost"
 username    = process.env.AMQP_USERNAME ? "guest"
@@ -29,12 +31,15 @@ Promise.all(promises).then ()=>
     @hosAuth.on 'message', (msg)=>
         msg.accept()
 
+
+
     hosApi.init(true, 'localhost:8091').then ()=>
         @serviceDist.on '/users.post', (msg)=>
             msg.reply(msg.content)
 
         app = express()
         app.set 'port', 8091
+        app.use cors()
         app.use bodyParser.json()
         app.use hosApi.swaggerMetadata
         app.use hosApi.swaggerValidator

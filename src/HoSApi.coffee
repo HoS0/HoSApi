@@ -3,12 +3,14 @@ url          = require('url')
 HoSCom       = require('hos-com')
 swaggerTools = require('swagger-tools')
 Promise      = require 'bluebird'
+HoSController= require 'hos-controller'
 
 amqpurl     = process.env.AMQP_URL ? "localhost"
 username    = process.env.AMQP_USERNAME ? "guest"
 password    = process.env.AMQP_PASSWORD ? "guest"
 
 hos = {}
+hosController = {}
 swaggerToolsMiddleware = {}
 String.prototype.endsWith = (suffix)->
     return this.indexOf(suffix, this.length - suffix.length) isnt -1
@@ -92,12 +94,15 @@ module.exports =
             .then ()=>
                 hos = @hos
                 if useSwaggerTool is true
-                    hos.sendMessage({} , '/ctrlr', {task: '/tasks', method: 'get', query: {docincluded: true, host: host}})
-                    .then (replyPayload)=>
-                        swaggerTools.initializeMiddleware replyPayload.doc, (middleware)->
-                            swaggerToolsMiddleware = middleware
-                            fullfil()
-                            getDocPeriodically(host)
+                    @hosController = new HoSController(amqpurl, username, password)
+                    @hosController.connect()
+                    .then ()=>
+                        hos.sendMessage({} , '/ctrlr', {task: '/tasks', method: 'get', query: {docincluded: true, host: host}})
+                        .then (replyPayload)=>
+                            swaggerTools.initializeMiddleware replyPayload.doc, (middleware)->
+                                swaggerToolsMiddleware = middleware
+                                fullfil()
+                                getDocPeriodically(host)
                 else
                     fullfil()
 
@@ -123,3 +128,5 @@ module.exports =
 
     destroy: ()->
         @hos.destroy()
+        if hosController
+            @hosController.destroy()

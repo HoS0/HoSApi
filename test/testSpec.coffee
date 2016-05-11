@@ -19,12 +19,10 @@ describe "Open express app", ()->
         @serviceCon.serviceDoc.basePath = "/serviceTest#{crypto.randomBytes(4).toString('hex')}"
         @serviceDist = new HosCom @serviceCon, amqpurl, username, password
         @hosAuth = new HoSAuth(amqpurl, username, password)
-        @hosController = new HoSController(amqpurl, username, password)
 
         promises = []
         promises.push @hosAuth.connect()
         promises.push @serviceDist.connect()
-        promises.push @hosController.connect()
         Promise.all(promises).then ()=>
             @hosAuth.on 'message', (msg)=>
                 msg.accept()
@@ -36,7 +34,6 @@ describe "Open express app", ()->
         hosApi.destroy()
         @serviceDist.destroy()
         @hosAuth.destroy()
-        @hosController.destroy()
         done()
 
     it "GET /ctrlr/tasks", (done)->

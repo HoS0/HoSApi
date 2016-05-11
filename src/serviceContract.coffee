@@ -7,6 +7,6 @@ serviceInfo =
     basePath: "/api"
   prefetch: 1
   consumerNumber: 2
-  messageTimeout: 2000
+  messageTimeout: 30000
 
 module.exports = serviceInfo
