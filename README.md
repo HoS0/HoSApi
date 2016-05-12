@@ -62,10 +62,9 @@ hosAuth.connect()
       });
     });
 });
+```
 
 You need to have a running hos-auth, in this example authentication service simply accept all the incoming calls, in hosApi init method you can specify is you require to initialize swagger middlewere and the host address to serve the swaggerui with, hos-api initializes an instance of hos-controller, collecting swagger docs for each service merging them and serve them as once in `/docs` or `/api-docs` of your host server address, every 10 minutes by default swagger file for the api gets updated.
-
-```
 
 ### url
 
