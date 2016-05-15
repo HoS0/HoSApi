@@ -43,7 +43,6 @@ var amqppassword    = "guest"
 hosAuth = new HoSAuth(amqpurl, amqpusername, amqppassword)
 hosAuth.on('message', (function(msg){ msg.accept(); }));
 
-app = express();
 hosAuth.connect()
 .then(function() {
     hosApi.init(true, 'localhost:8080').then(function() {
