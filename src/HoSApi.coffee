@@ -106,11 +106,14 @@ module.exports =
                 else
                     fullfil()
 
+    sendMessage: (content, destination, headers)->
+        hos.sendMessage(content, destination, headers)
+
     middleware: (req, res, next)->
         if req and req.method
             method = req.method.toLowerCase()
             if req.url.endsWith('.html')
-                next()
+                next() if typeof next is 'function'
             else
                 sendHoSMessage(req, res, next, method)
 
